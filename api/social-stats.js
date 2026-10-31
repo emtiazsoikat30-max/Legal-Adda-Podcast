@@ -6,20 +6,38 @@ const json = (res, status, body) => {
 };
 
 module.exports = async (_req, res) => {
-  const output = { youtube: null, facebook: null, updatedAt: new Date().toISOString() };
+  const output = { youtube: null, latestVideos: [], facebook: null, updatedAt: new Date().toISOString() };
   const jobs = [];
 
   if (process.env.YOUTUBE_API_KEY) {
     const params = new URLSearchParams({
-      part: 'statistics',
+      part: 'statistics,contentDetails',
       forHandle: 'Legaladda90',
       key: process.env.YOUTUBE_API_KEY,
     });
     jobs.push(fetch(`https://www.googleapis.com/youtube/v3/channels?${params}`)
       .then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        const count = data?.items?.[0]?.statistics?.subscriberCount;
+      .then(async (data) => {
+        const channel = data?.items?.[0];
+        const count = channel?.statistics?.subscriberCount;
         if (count != null) output.youtube = { subscriberCount: Number(count) };
+        const uploadsPlaylist = channel?.contentDetails?.relatedPlaylists?.uploads;
+        if (!uploadsPlaylist) return;
+        const videosParams = new URLSearchParams({
+          part: 'snippet,contentDetails',
+          playlistId: uploadsPlaylist,
+          maxResults: '6',
+          key: process.env.YOUTUBE_API_KEY,
+        });
+        const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${videosParams}`);
+        const videosData = videosResponse.ok ? await videosResponse.json() : null;
+        output.latestVideos = (videosData?.items || [])
+          .filter((item) => item?.contentDetails?.videoId && item?.snippet?.title && item.snippet.title !== 'Private video')
+          .map((item) => ({
+            id: item.contentDetails.videoId,
+            title: item.snippet.title,
+            thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+          }));
       }));
   }
 

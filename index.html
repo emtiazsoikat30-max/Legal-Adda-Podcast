@@ -89,6 +89,34 @@
         document.getElementById('facebook-count').textContent = `${formatCount(stats.facebook.followersCount)} Followers`;
         document.getElementById('facebook-caption').textContent = 'Live Facebook follower count';
       }
+      if (Array.isArray(stats.latestVideos) && stats.latestVideos.length) {
+        const list = document.querySelector('.episode-list');
+        if (!list) return;
+        list.replaceChildren(...stats.latestVideos.map((video) => {
+          const card = document.createElement('article');
+          card.className = 'episode-card';
+          const link = document.createElement('a');
+          link.className = 'episode-thumb';
+          link.href = `https://www.youtube.com/watch?v=${encodeURIComponent(video.id)}`;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          const image = document.createElement('img');
+          image.loading = 'lazy';
+          image.src = video.thumbnail || `https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/hqdefault.jpg`;
+          image.alt = `${video.title} thumbnail`;
+          link.append(image);
+          const copy = document.createElement('div');
+          copy.className = 'episode-card-copy';
+          const label = document.createElement('span');
+          label.className = 'mono';
+          label.textContent = 'LATEST ON YOUTUBE';
+          const title = document.createElement('h3');
+          title.textContent = video.title;
+          copy.append(label, title);
+          card.append(link, copy);
+          return card;
+        }));
+      }
     }).catch(() => {});
   </script>
 </body>
