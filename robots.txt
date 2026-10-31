@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://legal-adda-podcast.vercel.app/sitemap.xml
