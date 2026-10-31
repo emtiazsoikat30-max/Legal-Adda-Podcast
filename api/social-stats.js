@@ -6,7 +6,7 @@ const json = (res, status, body) => {
 };
 
 module.exports = async (_req, res) => {
-  const output = { youtube: null, latestVideos: [], facebook: null, updatedAt: new Date().toISOString() };
+  const output = { youtube: null, featuredVideos: [], allVideos: [], facebook: null, updatedAt: new Date().toISOString() };
   const jobs = [];
 
   if (process.env.YOUTUBE_API_KEY) {
@@ -26,18 +26,32 @@ module.exports = async (_req, res) => {
         const videosParams = new URLSearchParams({
           part: 'snippet,contentDetails',
           playlistId: uploadsPlaylist,
-          maxResults: '6',
+          maxResults: '50',
           key: process.env.YOUTUBE_API_KEY,
         });
         const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${videosParams}`);
         const videosData = videosResponse.ok ? await videosResponse.json() : null;
-        output.latestVideos = (videosData?.items || [])
+        const uploads = (videosData?.items || [])
           .filter((item) => item?.contentDetails?.videoId && item?.snippet?.title && item.snippet.title !== 'Private video')
           .map((item) => ({
             id: item.contentDetails.videoId,
             title: item.snippet.title,
             thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+            publishedAt: item.contentDetails.videoPublishedAt || item.snippet.publishedAt,
           }));
+        const ids = uploads.map((video) => video.id).join(',');
+        if (ids) {
+          const viewParams = new URLSearchParams({ part: 'statistics', id: ids, key: process.env.YOUTUBE_API_KEY });
+          const viewResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${viewParams}`);
+          const viewData = viewResponse.ok ? await viewResponse.json() : null;
+          const views = new Map((viewData?.items || []).map((video) => [video.id, Number(video.statistics?.viewCount || 0)]));
+          uploads.forEach((video) => { video.viewCount = views.get(video.id) || 0; });
+        }
+        const newest = uploads.slice(0, 2);
+        const newestIds = new Set(newest.map((video) => video.id));
+        const popular = uploads.filter((video) => !newestIds.has(video.id)).sort((a, b) => b.viewCount - a.viewCount).slice(0, 4);
+        output.featuredVideos = [...newest, ...popular];
+        output.allVideos = [...output.featuredVideos, ...uploads.filter((video) => !output.featuredVideos.some((featured) => featured.id === video.id))];
       }));
   }
 
